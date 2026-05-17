@@ -8,6 +8,11 @@ from typing import Literal
 
 import httpx
 from watchfiles import awatch
+from press_api_spec.node_agent_contract_v1.endpoints import GetRoutes
+from press_api_spec.node_agent_contract_v1.models import (
+    RouteDeclaration,
+    RoutesResponse,
+)
 
 from .config import Config, ConfigManager
 from .proxy_client import ProxyClient
@@ -16,7 +21,6 @@ from .routes import RouteRegistry
 log = logging.getLogger(__name__)
 
 RECONCILE_INTERVAL_SECONDS = 300
-ROUTES_ENDPOINT = "/_meta/routes"
 
 
 @dataclass(frozen=True)
@@ -301,16 +305,15 @@ class AgentDiscovery:
     async def _fetch_routes(
         self,
         endpoint: AgentEndpoint,
-    ) -> list[dict]:
+    ) -> list[RouteDeclaration]:
         """
         Fetch route metadata from an agent.
         """
         async with self._create_client(endpoint) as client:
-            response = await client.get(ROUTES_ENDPOINT)
+            response = await client.get(GetRoutes.full_path)
             response.raise_for_status()
 
-            payload = response.json()
-            return list(payload.get("routes", []))
+            return RoutesResponse.model_validate(response.json()).routes
 
     def _create_client(self, endpoint: AgentEndpoint) -> httpx.AsyncClient:
         """

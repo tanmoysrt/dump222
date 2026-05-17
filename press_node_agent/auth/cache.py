@@ -3,23 +3,9 @@ from __future__ import annotations
 import asyncio
 import time
 
-from pydantic import BaseModel
+from press_api_spec.node_agent_service_v1.models import CheckRequest
 
-
-class CheckRequest(BaseModel):
-    class Resource(BaseModel):
-        type: str
-        id: str
-
-    sub: str
-    jti: str
-    resource: Resource
-    action: str
-
-    @property
-    def cache_key(self) -> tuple:
-        """Return a tuple key for caching this request's authorization decision."""
-        return (self.jti, self.sub, self.resource.type, self.resource.id, self.action)
+__all__ = ["CheckRequest", "AuthzCache"]
 
 
 class AuthzCache:
@@ -33,7 +19,7 @@ class AuthzCache:
         self._lock = asyncio.Lock()
 
     async def get(self, req: CheckRequest) -> bool | None:
-        key = req.cache_key
+        key = self._generate_cache_key(req)
         now = time.monotonic()
 
         async with self._lock:
@@ -49,7 +35,7 @@ class AuthzCache:
             return allowed
 
     async def put(self, req: CheckRequest, allowed: bool) -> None:
-        key = req.cache_key
+        key = self._generate_cache_key(req)
         ttl = self.ALLOW_TTL if allowed else self.DENY_TTL
         now = time.monotonic()
 
@@ -69,3 +55,6 @@ class AuthzCache:
                         self._cache.pop(next(it), None)
 
             self._cache[key] = (allowed, now + ttl)
+
+    def _generate_cache_key(self, req: CheckRequest) -> tuple:
+        return (req.jti, req.sub, req.resource.type, req.resource.id, req.action)

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-from typing import Any
-
 import httpx
+from press_api_spec.node_agent_service_v1.endpoints import HasPermission, RefreshAgent
+from press_api_spec.node_agent_service_v1.models import (
+    CheckRequest,
+    CheckResource,
+    HasPermissionResponse,
+    RefreshAgentResponse,
+)
 
 from .config import get_node_agent_socket
 
@@ -11,7 +16,7 @@ async def send_request(
     method: str,
     path: str,
     *,
-    json: dict[str, Any] | None = None,
+    json: dict | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = 30.0,
     node_socket: str | None = None,
@@ -60,14 +65,15 @@ async def has_permission(
         base_url="http://node",
         timeout=timeout,
     ) as client:
+        req = CheckRequest(
+            sub=sub,
+            jti=jti,
+            resource=CheckResource(type=resource_type, id=resource_id),
+            action=action,
+        )
         resp = await client.post(
-            "/_admin/has-permission",
-            json={
-                "sub": sub,
-                "jti": jti,
-                "resource": {"type": resource_type, "id": resource_id},
-                "action": action,
-            },
+            HasPermission.full_path,
+            json=req.model_dump(),
         )
 
     if resp.status_code == 503:
@@ -75,7 +81,7 @@ async def has_permission(
             "authz service unavailable", request=resp.request, response=resp
         )
     resp.raise_for_status()
-    return bool(resp.json().get("allowed"))
+    return HasPermissionResponse.model_validate(resp.json()).allowed
 
 
 async def refresh_agent_routes(
@@ -83,7 +89,7 @@ async def refresh_agent_routes(
     *,
     timeout: float = 5.0,
     node_socket: str | None = None,
-) -> dict[str, Any]:
+) -> RefreshAgentResponse:
     """Trigger a route refresh for an agent or all agents (async)."""
     sock = node_socket or get_node_agent_socket()
     transport = httpx.AsyncHTTPTransport(uds=sock)
@@ -95,7 +101,8 @@ async def refresh_agent_routes(
         base_url="http://node",
         timeout=timeout,
     ) as client:
-        resp = await client.post("/_admin/refresh-agent", params=params)
+        resp = await client.post(RefreshAgent.full_path, params=params)
 
     resp.raise_for_status()
+    return RefreshAgentResponse.model_validate(resp.json())
     return resp.json()

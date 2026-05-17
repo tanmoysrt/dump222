@@ -24,14 +24,39 @@ Node Agent calls this endpoint on every discovered agent to learn what URL prefi
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `prefix` | string | **Yes** | URL prefix this agent owns. Cannot be `/`, `/*`, or overlap with controlplane/authz prefixes |
-| `whitelist` | array | No | Paths that bypass JWT validation |
-| `whitelist[].path` | string | **Yes** | The whitelisted path |
-| `whitelist[].match` | string | No | Match mode: `exact` (default), `exact_or_prefix`, `prefix` |
+| Field               | Type   | Required | Description                                                                                  |
+| ------------------- | ------ | -------- | -------------------------------------------------------------------------------------------- |
+| `prefix`            | string | **Yes**  | URL prefix this agent owns. Cannot be `/`, `/*`, or overlap with controlplane/authz prefixes |
+| `whitelist`         | array  | No       | Paths that bypass JWT validation                                                             |
+| `whitelist[].path`  | string | **Yes**  | The whitelisted path                                                                         |
+| `whitelist[].match` | string | No       | Match mode: `exact` (default), `exact_or_prefix`, `prefix`                                   |
 
 **Important:** The prefix you declare here is stripped from incoming requests. If you register `/my-agent` and a client calls `/my-agent/api/list`, your handler receives `/api/list`.
+
+**Typed implementation using `press_api_spec`:**
+
+```python
+from press_api_spec.node_agent_contract_v1.endpoints.routes import GetRoutes
+from press_api_spec.node_agent_contract_v1.models.routes import (
+    RouteDeclaration,
+    RoutesResponse,
+    WhitelistEntry,
+)
+
+@app.get(GetRoutes.full_path)
+async def meta_routes() -> RoutesResponse:
+    return RoutesResponse(
+        routes=[
+            RouteDeclaration(
+                prefix="/my-agent",
+                whitelist=[
+                    WhitelistEntry(path="/my-agent/health"),
+                    WhitelistEntry(path="/my-agent/public/", match="prefix"),
+                ],
+            ),
+        ]
+    )
+```
 
 ## Transport Options
 
@@ -90,13 +115,13 @@ def get_auth_context(request: Request) -> dict:
     }
 ```
 
-| Header | Value | Meaning |
-|---|---|---|
-| `X-Auth-Source` | `external` | Request came from an external client through the TCP proxy |
-| `X-Auth-Source` | `local` | Request came via `node.sock` (local proxy adds this for agent-to-agent, agent-to-controlplane, or admin calls) |
-| `X-Auth-Sub` | JWT `sub` | User identity (external only) |
-| `X-Auth-Roles` | comma-separated | User roles from JWT (external only) |
-| `X-Auth-Jti` | JWT `jti` | Token ID for authz caching (external only) |
+| Header          | Value           | Meaning                                                                                                        |
+| --------------- | --------------- | -------------------------------------------------------------------------------------------------------------- |
+| `X-Auth-Source` | `external`      | Request came from an external client through the TCP proxy                                                     |
+| `X-Auth-Source` | `local`         | Request came via `node.sock` (local proxy adds this for agent-to-agent, agent-to-controlplane, or admin calls) |
+| `X-Auth-Sub`    | JWT `sub`       | User identity (external only)                                                                                  |
+| `X-Auth-Roles`  | comma-separated | User roles from JWT (external only)                                                                            |
+| `X-Auth-Jti`    | JWT `jti`       | Token ID for authz caching (external only)                                                                     |
 
 **If `X-Auth-Source` is missing, the request bypassed Node Agent - deny it.**
 
@@ -110,7 +135,7 @@ graph TD
     Source -->|local| Trust[Trust - skip authz]
     Source -->|external| Roles{Check X-Auth-Roles}
     Roles -->|admin / telemetry| Trust2[Agent-decided shortcut - skip authz]
-    Roles -->|user / other| Authz[Call has_permission()]
+    Roles -->|user / other| Authz[Call has_permission_async()]
 ```
 
 #### 1. Local Agent Call (`X-Auth-Source: local`)
@@ -140,10 +165,10 @@ if "admin" in roles or "telemetry" in roles:
 A regular user calling your agent. Use the client library to check permissions:
 
 ```python
-from press_node_agent_client import has_permission
+from press_node_agent_client import has_permission_async
 
 async def check_permission(sub: str, jti: str, resource_type: str, resource_id: str, action: str) -> bool:
-    return await has_permission(
+    return await has_permission_async(
         sub=sub,
         jti=jti,
         resource_type=resource_type,
@@ -156,7 +181,7 @@ async def check_permission(sub: str, jti: str, resource_type: str, resource_id: 
 
 ```python
 from fastapi import FastAPI, HTTPException, Request
-from press_node_agent_client import has_permission
+from press_node_agent_client import has_permission_async
 
 app = FastAPI()
 
@@ -184,7 +209,7 @@ async def _authorize(request: Request, resource_type: str, resource_id: str, act
         return True
 
     # Normal external user - check with authz service
-    return await has_permission(
+    return await has_permission_async(
         sub=sub,
         jti=jti,
         resource_type=resource_type,
@@ -213,9 +238,9 @@ The library resolves socket paths from environment variables and provides typed 
 ### Checking Permissions
 
 ```python
-from press_node_agent_client import has_permission
+from press_node_agent_client import has_permission_async
 
-allowed = await has_permission(
+allowed = await has_permission_async(
     sub="alice",
     jti="abc-123",
     resource_type="Thing",
@@ -230,14 +255,14 @@ allowed = await has_permission(
 Agents can reach controlplanes without storing or sending any JWT. The local proxy on `node.sock` matches the route and attaches the node's own JWT downstream.
 
 ```python
-from press_node_agent_client import send_request
+from press_node_agent_client import send_request_async
 
 # GET request to controlplane
-resp = await send_request("GET", "/api/v1/cluster/nodes")
+resp = await send_request_async("GET", "/api/v1/cluster/nodes")
 print(resp.json())
 
 # POST request with body
-resp = await send_request(
+resp = await send_request_async(
     "POST",
     "/api/v1/events",
     json={"type": "deploy", "service": "web"},
@@ -249,40 +274,42 @@ resp = await send_request(
 Route through `node.sock` with the target's prefix. The target agent receives `X-Auth-Source: local`.
 
 ```python
-from press_node_agent_client import send_request
+from press_node_agent_client import send_request_async
 
-resp = await send_request("GET", "/other-agent/some/path")
+resp = await send_request_async("GET", "/other-agent/some/path")
 ```
 
 ### Refreshing Routes
 
 ```python
-from press_node_agent_client import refresh_agent_routes
+from press_node_agent_client import refresh_agent_routes_async
 
 # Refresh a specific agent
-await refresh_agent_routes(agent="my-agent")
+result = await refresh_agent_routes_async(agent="my-agent")
+print(result.refreshed)  # "my-agent"
 
 # Refresh all agents
-await refresh_agent_routes()
+result = await refresh_agent_routes_async()
+print(result.refreshed)  # "all"
 ```
 
 ### Environment Variables
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `NODE_AGENT_SOCKET` | `<AGENT_SOCKET_DIR>/node.sock` | Override the node-agent socket path |
-| `AGENT_SOCKET_DIR` | `/run/press-node-agent` | Base directory for agent socket files |
+| Variable            | Default                        | Purpose                               |
+| ------------------- | ------------------------------ | ------------------------------------- |
+| `NODE_AGENT_SOCKET` | `<AGENT_SOCKET_DIR>/node.sock` | Override the node-agent socket path   |
+| `AGENT_SOCKET_DIR`  | `/run/press-node-agent`        | Base directory for agent socket files |
 
 ## Route Registration Rules
 
 When Node Agent fetches your routes, it validates and may reject prefixes:
 
-| Rejection Reason | Example |
-|---|---|
-| Empty or root prefix | `""`, `"/"`, `"/*"` |
-| Overlaps controlplane prefix | Your `/api/v1` conflicts with controlplane's `/api/v1/cluster` |
-| Overlaps authz prefix | Your `/authz` conflicts with authz's `/authz` |
-| Already owned by another agent | `/other-agent` is already registered |
+| Rejection Reason               | Example                                                        |
+| ------------------------------ | -------------------------------------------------------------- |
+| Empty or root prefix           | `""`, `"/"`, `"/*"`                                            |
+| Overlaps controlplane prefix   | Your `/api/v1` conflicts with controlplane's `/api/v1/cluster` |
+| Overlaps authz prefix          | Your `/authz` conflicts with authz's `/authz`                  |
+| Already owned by another agent | `/other-agent` is already registered                           |
 
 Node Agent returns `(registered, rejected)` lists. Check your logs for rejections.
 

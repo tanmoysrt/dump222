@@ -17,6 +17,12 @@ from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
+from press_api_spec.node_agent_contract_v1.endpoints.routes import GetRoutes
+from press_api_spec.node_agent_contract_v1.models.routes import (
+    RouteDeclaration,
+    RoutesResponse,
+    WhitelistEntry,
+)
 from press_node_agent_client import (
     AuthContext,
     get_my_agent_socket_path,
@@ -31,19 +37,19 @@ AGENT_NAME = "dummy"
 app = FastAPI()
 
 
-@app.get("/_meta/routes")
-async def meta_routes() -> dict:
-    return {
-        "routes": [
-            {
-                "prefix": "/dummy",
-                "whitelist": [
-                    {"path": "/dummy/health"},
-                    {"path": "/dummy/stream/", "match": "prefix"},
+@app.get(GetRoutes.full_path)
+async def meta_routes() -> RoutesResponse:
+    return RoutesResponse(
+        routes=[
+            RouteDeclaration(
+                prefix="/dummy",
+                whitelist=[
+                    WhitelistEntry(path="/dummy/health"),
+                    WhitelistEntry(path="/dummy/stream/", match="prefix"),
                 ],
-            },
-        ],
-    }
+            ),
+        ]
+    )
 
 
 @app.get("/dummy/health")

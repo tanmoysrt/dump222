@@ -5,6 +5,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Literal
 
+from press_api_spec.node_agent_contract_v1.models.routes import RouteDeclaration
+
 from .config import Config, ConfigManager
 
 log = logging.getLogger(__name__)
@@ -142,7 +144,7 @@ class RouteRegistry:
         return list(self._authz_prefixes)
 
     async def replace_agent_routes(
-        self, agent: str, transport: str, target: str, entries: list[dict]
+        self, agent: str, transport: str, target: str, entries: list[RouteDeclaration]
     ) -> tuple[list[str], list[str]]:
         """Atomically replace all routes for an agent. Removes old routes and registers new ones under a single lock."""
         registered: list[str] = []
@@ -151,7 +153,7 @@ class RouteRegistry:
             self._routes = [r for r in self._routes if r.agent != agent]
             existing_prefixes = {r.prefix for r in self._routes}
             for entry in entries:
-                prefix = entry.get("prefix", "")
+                prefix = entry.prefix
                 if not prefix or prefix in ("/", "/*"):
                     log.error("rejecting invalid prefix %r from %s", prefix, agent)
                     rejected.append(prefix)
@@ -184,22 +186,10 @@ class RouteRegistry:
                     )
                     rejected.append(prefix)
                     continue
-                wl: list[WhitelistEntry] = []
-                for w in entry.get("whitelist", []):
-                    match_mode = w.get("match", "exact")
-                    if match_mode not in {"exact", "exact_or_prefix", "prefix"}:
-                        log.warning(
-                            "unknown whitelist match mode %r from %s, defaulting to 'exact'",
-                            match_mode,
-                            agent,
-                        )
-                        match_mode = "exact"
-                    wl.append(
-                        WhitelistEntry(
-                            path=w["path"],
-                            match=match_mode,
-                        )
-                    )
+                wl = [
+                    WhitelistEntry(path=w.path, match=w.match)
+                    for w in entry.whitelist
+                ]
                 self._routes.append(
                     RouteEntry(
                         prefix=prefix,
@@ -216,7 +206,7 @@ class RouteRegistry:
         return registered, rejected
 
     async def register_agent_routes(
-        self, agent: str, transport: str, target: str, entries: list[dict]
+        self, agent: str, transport: str, target: str, entries: list[RouteDeclaration]
     ) -> tuple[list[str], list[str]]:
         """Register routes for an agent and return (registered, rejected) prefixes."""
         registered: list[str] = []
@@ -224,7 +214,7 @@ class RouteRegistry:
         async with self._lock:
             existing_prefixes = {r.prefix for r in self._routes}
             for entry in entries:
-                prefix = entry.get("prefix", "")
+                prefix = entry.prefix
                 if not prefix or prefix in ("/", "/*"):
                     log.error("rejecting invalid prefix %r from %s", prefix, agent)
                     rejected.append(prefix)
@@ -257,22 +247,10 @@ class RouteRegistry:
                     )
                     rejected.append(prefix)
                     continue
-                wl: list[WhitelistEntry] = []
-                for w in entry.get("whitelist", []):
-                    match_mode = w.get("match", "exact")
-                    if match_mode not in {"exact", "exact_or_prefix", "prefix"}:
-                        log.warning(
-                            "unknown whitelist match mode %r from %s, defaulting to 'exact'",
-                            match_mode,
-                            agent,
-                        )
-                        match_mode = "exact"
-                    wl.append(
-                        WhitelistEntry(
-                            path=w["path"],
-                            match=match_mode,
-                        )
-                    )
+                wl = [
+                    WhitelistEntry(path=w.path, match=w.match)
+                    for w in entry.whitelist
+                ]
                 self._routes.append(
                     RouteEntry(
                         prefix=prefix,
