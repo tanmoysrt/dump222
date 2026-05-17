@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "node-agent"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.136",
+    "uvicorn[standard]>=0.47",
+    "httpx>=0.28",
+    "pyjwt[crypto]>=2.12",
+    "cryptography>=48",
+    "pydantic>=2.13",
+    "watchfiles>=1.1",
+]
+
+[project.scripts]
+node-agent = "node_agent.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["node_agent*"]

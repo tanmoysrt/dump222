@@ -1,0 +1,25 @@
+{
+	"listen": {
+		"host": "127.0.0.1",
+		"port": 8080
+	},
+	"jwks": {
+		"url": "http://127.0.0.1:9100/.well-known/jwks.json",
+		"cache_ttl_seconds": 300
+	},
+	"jwt": {
+		"issuer": "press-controlplane",
+		"audience": "press-node"
+	},
+	"node_jwt": "replace-with-node-jwt",
+	"allow_http_agents": true,
+	"controlplane": {
+		"url": "http://127.0.0.1:9000",
+		"prefixes": ["/api/v1/cluster", "/api/v1/events"]
+	},
+	"authz": {
+		"url": "http://127.0.0.1:9200/check"
+	},
+	"socket_dir": "/run/press-node-agent",
+	"admin_socket": "/run/press-node-agent/node.sock"
+}
