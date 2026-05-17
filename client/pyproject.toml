@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "press-node-agent-client"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "httpx>=0.28",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["press_node_agent_client*"]

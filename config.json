@@ -21,9 +21,9 @@
 		}
 	],
 	"authz": {
-		"url": "http://127.0.0.1:9100/check",
+		"url": "http://127.0.0.1:9200/check",
 		"jwt_token": ""
 	},
-	"socket_dir": "/run/press-node-agent",
-	"admin_socket": "/run/press-node-agent/node.sock"
+	"socket_dir": "./press-node-agent",
+	"admin_socket": "./press-node-agent/node.sock"
 }

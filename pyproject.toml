@@ -3,7 +3,7 @@ requires = ["setuptools>=70"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "node-agent"
+name = "press-node-agent"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
@@ -17,8 +17,8 @@ dependencies = [
 ]
 
 [project.scripts]
-node-agent = "node_agent.main:main"
+press-node-agent = "press_node_agent.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["node_agent*"]
+include = ["press_node_agent*"]

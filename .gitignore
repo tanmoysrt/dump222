@@ -3,3 +3,6 @@ env
 *.egg-info
 dist
 build
+press-node-agent
+dev-keys
+config.json
